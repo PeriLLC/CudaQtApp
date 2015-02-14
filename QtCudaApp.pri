@@ -20,4 +20,5 @@ SOURCES += ./QtCudaApp/cudaglwidget.cpp \
     ./QtCudaApp/textmessagebox.cpp
 FORMS += ./QtCudaApp/qtcudaapp.ui
 RESOURCES += ./QtCudaApp/qtcudaapp.qrc
+
 #CUDA_SOURCES += ./QtCudaApp/volumeRender_kernel.cu
