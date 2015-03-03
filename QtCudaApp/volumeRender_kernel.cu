@@ -10,7 +10,7 @@
  */
 
 /*
- * QtCudaApp.cpp
+ * volumeRender_kernel.cu
  * 
  * Copyright (c) 2015, Peri, LLC. All rights reserved.
  *
@@ -31,6 +31,7 @@
  */
 
 //! Simple 3D volume renderer
+//  Based on NVidia Cuda example, add three filters.
 
 #ifndef _VOLUMERENDER_KERNEL_CU_
 #define _VOLUMERENDER_KERNEL_CU_

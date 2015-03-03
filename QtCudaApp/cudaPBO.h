@@ -83,6 +83,17 @@ public:
 	}
 
 	/**
+	 * Return a list, showing whether such device is available.
+	 * The index is device id. 
+	 * The device is not available maybe due to:
+	 *	- sm is 1.0. Cuda 6.5 put sm <2.0 deprecated and sm 1.0 is totally out of support (cannot compile).
+	 *  - device report not usable, maybe malfunction requires reset or occpyed by other processes.
+	 */
+	bool * getDeviceAvailable(){
+		return isDeviceAvailable;
+	}
+
+	/**
 	 * Return how many cuda device in the machine.
 	 */
 	int getDeviceCounts()
@@ -134,6 +145,11 @@ public:
 	 */		
 	bool freeCudaBuffers();
 
+	/**
+	 *  This function find the fastest and available device.
+	 *  return device id. If no available, return -1.
+	 */
+	int findFastestDevice();
 private:
 	void createPBO();
 	void deletePBO();
@@ -147,6 +163,7 @@ private:
 	int deviceCounts;
 	int selectedDevice;
 	cudaDeviceProp *devicesProps;
+	bool *isDeviceAvailable;
 	int driverVersion;
 	int runtimeVersion;
 	unsigned int image_width;

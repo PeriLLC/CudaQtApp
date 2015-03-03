@@ -38,10 +38,10 @@ CUDAGLWidget::CUDAGLWidget(QWidget *parent)
 	connect ( tiupdate, SIGNAL( timeout() ), this, SLOT ( update() ) );
 	connect ( tifps,    SIGNAL( timeout() ), this, SLOT ( framesCount() ) );
 
-	//	tifps->start(1000);
-	//	timeElapse.start();
+	tifps->start(1000);
+	timeElapse.start();
 	glError = GL_NO_ERROR;
-	//  spbo->qt5CudaVR=(Qt5CudaVR*) parent;
+
 	mousedown=0;
 	volumeReady=false;
 }
@@ -142,33 +142,17 @@ void CUDAGLWidget::paintGL(){
 			spbo->renderSetting.invViewMatrix[10] = modelView[10];
 			spbo->renderSetting.invViewMatrix[11] = modelView[14];
 
-
 			// run CUDA kernel
 			spbo->runCuda( timeElapse.elapsed() );
 
+			glClearColor(0.,0.,.2,.5);
 			glClear(GL_COLOR_BUFFER_BIT);// | GL_DEPTH_BUFFER_BIT);
-			//			glClearColor(0.,0.,.2,.5);
 			// draw image from PBO
 			glDisable(GL_DEPTH_TEST);
 			glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
 			// now bind buffer after cuda is done
 			spbo->bind();
-
-
-			//  glMatrixMode(GL_MODELVIEW); //Select The Modelview Matrix
-			//  glLoadIdentity();
-
-			/*
-			glEnable(GL_TEXTURE_2D);
-			// Draw a single Quad with texture coordinates for each vertex.
-			glBegin(GL_QUADS);
-			glTexCoord2f(0.0f,1.0f);  glVertex3f(-1.0f,-1.0f,-1.0f);
-			glTexCoord2f(0.0f,0.0f);  glVertex3f(-1.0f,1.0f,-1.0f);
-			glTexCoord2f(1.0f,0.0f);  glVertex3f(1.0f,1.0f,-1.0f);
-			glTexCoord2f(1.0f,1.0f);  glVertex3f(1.0f,-1.0f,-1.0f);
-			glEnd();
-			*/
 
 			glColor3f(1,1,1);
 			// draw textured quad
@@ -184,20 +168,23 @@ void CUDAGLWidget::paintGL(){
 			glVertex2f(0, 1);
 			glEnd();
 
-
 			spbo->release();
-			//			glColor3f(0,1,0);
-			//			renderText(10,10, strFrames);
 
+			glColor3f(1,1,0);
+			renderText(20,20, strFrames);
 		}
 		else
 		{
+			glClearColor(0.,0.,.2,.5);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			glColor3f(0,1,0);
 			renderText(width()/2,height()/2,tr("No Volume Loaded!"));
 		}
 	}
 	else
 	{
+		glClearColor(0.,0.,.2,.5);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glColor3f(1,0,0);
 		renderText(width()/2,height()/2,tr("CUDA not available!"));
 	}

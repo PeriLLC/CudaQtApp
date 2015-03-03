@@ -66,10 +66,13 @@ void QtCudaApp::createActions()
 	connect(ui.radioButtonM,SIGNAL(toggled(bool)),this,SLOT(toggleRenderType()));
 	connect(ui.radioButtonR,SIGNAL(toggled(bool)),this,SLOT(toggleRenderType()));
 	connect(ui.btn_RVP,SIGNAL(clicked()), this, SLOT(resetVP()));
+	connect(ui.btn_RRS,SIGNAL(clicked()), this, SLOT(resetRS()));
 	connect(ui.sliderB,SIGNAL(sliderMoved(int)),this,SLOT(bMoved(int)));
 	connect(ui.sliderD,SIGNAL(sliderMoved(int)),this,SLOT(dMoved(int)));
 	connect(ui.sliderMax,SIGNAL(sliderMoved(int)),this,SLOT(maxMoved(int)));
 	connect(ui.sliderMin,SIGNAL(sliderMoved(int)),this,SLOT(minMoved(int)));
+	connect(ui.sliderTO,SIGNAL(sliderMoved(int)),this,SLOT(toMoved(int)));
+	connect(ui.sliderTS,SIGNAL(sliderMoved(int)),this,SLOT(tsMoved(int)));
 
 }
 
@@ -87,20 +90,26 @@ void QtCudaApp::checkCuda()
 		ui.menu_Cuda->addSeparator();
 		int deviceCount=pCUDAGLWidget->getCudaPBO()->getDeviceCounts();
 		cudaDeviceProp * props = pCUDAGLWidget->getCudaPBO()->getDevicesProps();
+		bool *isDeviceOk=pCUDAGLWidget->getCudaPBO()->getDeviceAvailable();
 		deviceActions=new QAction*[deviceCount];
 		for (int i=0;i<deviceCount;i++)
 		{
 			deviceActions[i]=ui.menu_Cuda->addAction(props[i].name);
-			deviceActions[i]->setCheckable(true);
-			deviceActions[i]->setActionGroup(deviceActionGrp);
-			connect(deviceActions[i],SIGNAL(triggered ()),this,SLOT(switchDevice()));
+			if(isDeviceOk[i])
+			{
+				deviceActions[i]->setCheckable(true);
+				deviceActions[i]->setActionGroup(deviceActionGrp);
+				connect(deviceActions[i],SIGNAL(triggered ()),this,SLOT(switchDevice()));
+			}
+			else
+				deviceActions[i]->setEnabled(false);
 		}
 		int selectedDevice=pCUDAGLWidget->getCudaPBO()->getSelectedDevice();
 		if ((selectedDevice>=0)&&(selectedDevice<deviceCount))
 			deviceActions[selectedDevice]->setChecked(true);
 	}
 	else
-		QMessageBox::about(this, tr("Cuda check failed"),tr("Cuda not available, please check hardware!"));
+		QMessageBox::about(this, tr("Cuda check failed"),tr("Cuda not available, please check hardware!\n Notice: CUDA 6.5 does not support sm1.0 anymore!"));
 }
 
 void QtCudaApp::switchDevice()
@@ -173,6 +182,7 @@ void QtCudaApp::cudaInfo()
 
 }
 
+
 void QtCudaApp::newFile()
 {
 	if (maybeSave()) {
@@ -180,6 +190,7 @@ void QtCudaApp::newFile()
 		pCUDAGLWidget->getCudaPBO()->renderSetting.clear();
 		pCUDAGLWidget->setVolumeReady(false);
 		pCUDAGLWidget->getCudaPBO()->freeCudaBuffers();
+		resetRS();
 		this->volumeFile="";
 		setCurrentFile("");
 	}
@@ -257,7 +268,7 @@ bool QtCudaApp::maybeSave()
 	if (isModified) {
 		QMessageBox::StandardButton ret;
 		ret = QMessageBox::warning(this, tr("Application"),
-			tr("The document has been modified.\n"
+			tr("The renderring setting document has been modified.\n"
 			"Do you want to save your changes?"),
 			QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
 		if (ret == QMessageBox::Save)
@@ -336,8 +347,10 @@ void QtCudaApp::importVolume()
 		{
 			volumeFile=fileName;
 			pCUDAGLWidget->getCudaPBO()->renderSetting.volumeFilename=fileName;
+			resetRS();
 		}
 	}
+	documentWasModified();
 
 }
 
@@ -397,37 +410,88 @@ void QtCudaApp::toggleRenderType()
 		newRType=TYPE_XRAY;
 	pCUDAGLWidget->getCudaPBO()->renderSetting.renderringType=newRType;
 	//qDebug()<<tr("toggleRenderType:%1").arg((int)newRType);
+	documentWasModified();
 }
 
 void QtCudaApp::bMoved(int v)
 {
-	if (v>50)
-		pCUDAGLWidget->getCudaPBO()->renderSetting.brightness=((float)v-51.0f)*9.0f/48.0f+1.0f;
-	else if (v<50)
-		pCUDAGLWidget->getCudaPBO()->renderSetting.brightness=((float)v-49.0f)*0.9f/49.0f+1.0f;
-	else
-		pCUDAGLWidget->getCudaPBO()->renderSetting.brightness=1.0f;
+	pCUDAGLWidget->getCudaPBO()->renderSetting.brightness=slider2renderNonlinear(v);
+	documentWasModified();
 }
 void QtCudaApp::dMoved(int v)
 {
-	if (v>50)
-		pCUDAGLWidget->getCudaPBO()->renderSetting.density=((float)v-51.0f)*9.0f/48.0f+1.0f;
-	else if (v<50)
-		pCUDAGLWidget->getCudaPBO()->renderSetting.density=((float)v-49.0f)*0.9f/49.0f+1.0f;
-	else
-		pCUDAGLWidget->getCudaPBO()->renderSetting.density=1.0f;
+	pCUDAGLWidget->getCudaPBO()->renderSetting.density=slider2renderNonlinear(v);
+	documentWasModified();
 }
 void QtCudaApp::maxMoved(int v)
 {
-	pCUDAGLWidget->getCudaPBO()->renderSetting.maxExclude=((float)v)/100.0f;
+	pCUDAGLWidget->getCudaPBO()->renderSetting.maxExclude=slider2renderLinear(v);
+	documentWasModified();
 }
 void QtCudaApp::minMoved(int v)
 {
-	pCUDAGLWidget->getCudaPBO()->renderSetting.minExclude=((float)v)/100.0f;
+	pCUDAGLWidget->getCudaPBO()->renderSetting.minExclude=slider2renderLinear(v);
+	documentWasModified();
 }
 
 void QtCudaApp::resetVP()
 {
 	pCUDAGLWidget->getCudaPBO()->renderSetting.viewTranslation = make_float3(0.0, 0.0, -4.0f);
 	pCUDAGLWidget->getCudaPBO()->renderSetting.viewRotation = make_float3(0.0, 0.0, 0.0);
+}
+
+void QtCudaApp::resetRS()
+{
+	pCUDAGLWidget->getCudaPBO()->renderSetting.clear();
+	updateRenderSettingToControls();
+}
+
+void QtCudaApp::tsMoved(int v)
+{
+	pCUDAGLWidget->getCudaPBO()->renderSetting.transferScale=slider2renderNonlinear(v);
+	documentWasModified();
+}
+void QtCudaApp::toMoved(int v)
+{
+	pCUDAGLWidget->getCudaPBO()->renderSetting.transferOffset=slider2renderLinear(v);
+	documentWasModified();
+}
+
+
+float QtCudaApp::slider2renderLinear(float v)
+{
+	return v/100.0f;
+}
+
+float QtCudaApp::slider2renderNonlinear(float v)
+{
+	qreal x=(qreal)v;
+	return qPow(10.0,((x-50.0f)/25.0f));
+}
+
+float QtCudaApp::render2sliderLinear(float v)
+{
+	return v*100.0f;
+}
+
+float QtCudaApp::render2sliderNonlinear(float v)
+{
+	qreal x=(qreal)v;
+	return qLn(x)/qLn(2.618)*25.0f+50.0f;
+}
+
+void QtCudaApp::updateRenderSettingToControls()
+{
+	ui.radioButtonM->setChecked(pCUDAGLWidget->getCudaPBO()->renderSetting.renderringType==TYPE_MIP);
+	ui.radioButtonR->setChecked(pCUDAGLWidget->getCudaPBO()->renderSetting.renderringType==TYPE_XRAY);
+	ui.radioButtonC->setChecked(pCUDAGLWidget->getCudaPBO()->renderSetting.renderringType==TYPE_COMPOSITED);
+
+	ui.sliderB->setValue(render2sliderNonlinear(pCUDAGLWidget->getCudaPBO()->renderSetting.brightness));
+	ui.sliderD->setValue(render2sliderNonlinear(pCUDAGLWidget->getCudaPBO()->renderSetting.density));
+
+	ui.sliderMax->setValue(render2sliderLinear(pCUDAGLWidget->getCudaPBO()->renderSetting.maxExclude));
+	ui.sliderMin->setValue(render2sliderLinear(pCUDAGLWidget->getCudaPBO()->renderSetting.minExclude));
+
+	ui.sliderTO->setValue(render2sliderLinear(pCUDAGLWidget->getCudaPBO()->renderSetting.transferOffset));
+	ui.sliderTS->setValue(render2sliderNonlinear(pCUDAGLWidget->getCudaPBO()->renderSetting.transferScale));
 }

@@ -84,6 +84,9 @@ protected slots:
 	//! Function that responds to Reset View Point action
 	void resetVP();
 	
+	//! Function that responds to Reset Renderring Setting action
+	void resetRS();
+
 	//! Function that responds to changing on brightness slide bar
 	void bMoved(int);
 
@@ -96,6 +99,12 @@ protected slots:
 	//! Function that responds to changing on minimal exclude slide bar
 	void minMoved(int);
 
+	//! Function that responds to changing on transfunction offset slide bar
+	void toMoved(int);
+
+	//! Function that responds to changing on transfunction scale slide bar
+	void tsMoved(int);
+
 protected:
 	
 	QString curFile;//!< The current file
@@ -106,6 +115,26 @@ protected:
 	
 	//! whether the setting is modified
 	bool isModified;
+
+	//! Read the RenderSetting and load them in the dockable control panel
+	void updateRenderSettingToControls();
+
+	/*! Map slider value to render value linearly, now it is 0..99 -> 0..0.9
+	 *  Linear mapping y=x/100;
+	 */
+	float slider2renderLinear(float v);
+
+	/*! Map slider value to render value non-linearly, not it is 0..50..99 -> 0.01..1..100
+	 *  It Is an exponential function. y=10^((x-50)/25)
+	 */
+	float slider2renderNonlinear(float v);
+
+	//! Map render value to slider value linearly, reversly mapping
+	float render2sliderLinear(float v);
+
+	//! Map render value to slider value non-linearly, reversly mapping
+	float render2sliderNonlinear(float v);
+
 private:
 	Ui::QtCudaAppClass ui;
 	CUDAGLWidget *pCUDAGLWidget;

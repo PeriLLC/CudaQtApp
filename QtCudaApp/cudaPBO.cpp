@@ -1,23 +1,23 @@
 /*
- * cudaPBO.cpp
- * 
- * Copyright (c) 2015, Peri, LLC. All rights reserved.
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
- * MA 02110-1301  USA
- */
+* cudaPBO.cpp
+* 
+* Copyright (c) 2015, Peri, LLC. All rights reserved.
+*
+* This library is free software; you can redistribute it and/or
+* modify it under the terms of the GNU Lesser General Public
+* License as published by the Free Software Foundation; either
+* version 2.1 of the License, or (at your option) any later version.
+*
+* This library is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+* Lesser General Public License for more details.
+*
+* You should have received a copy of the GNU Lesser General Public
+* License along with this library; if not, write to the Free Software
+* Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+* MA 02110-1301  USA
+*/
 #include "cudaPBO.h"
 
 // CUDA Runtime, Interop, and includes
@@ -53,7 +53,8 @@
 //-----------------------------------------------------------------------------
 CudaPBO::CudaPBO(void)
 	: pixelBuffer(0), textureID(0),cudaAvailable(false),
-	deviceCounts(0),devicesProps(NULL),selectedDevice(-1),d_volumeArray(0),d_transferFuncArray(0)
+	deviceCounts(0),devicesProps(NULL),selectedDevice(-1),d_volumeArray(0),d_transferFuncArray(0),
+	isDeviceAvailable(NULL)
 {
 	image_width  = 512;
 	image_height = 512;
@@ -68,6 +69,8 @@ CudaPBO::~CudaPBO(void)
 	cleanupCuda();
 	if (devicesProps!=NULL)
 		delete []devicesProps;
+	if (isDeviceAvailable!=NULL)
+		delete []isDeviceAvailable;
 }
 //-----------------------------------------------------------------------------
 // initCuda
@@ -82,14 +85,23 @@ void CudaPBO::initCuda(){
 	deviceCounts=gpuGLDeviceInit(&devicesProps);
 	if(deviceCounts>0)
 	{
-		int fastestdevice=0;
-		if(checkCudaErrorsQT(cudaGLSetGLDevice(fastestdevice)))
+		isDeviceAvailable=new bool[deviceCounts];
+		for (int i=0;i<deviceCounts;i++)
 		{
-			selectedDevice=fastestdevice;
-			cudaAvailable=true;
+			if ((devicesProps[i].computeMode==cudaComputeModeProhibited )||((devicesProps[i].major<2)&&(devicesProps[i].minor<1)))
+				isDeviceAvailable[i]=false;
+			else
+				isDeviceAvailable[i]=true;
 		}
+		int fastestdevice=findFastestDevice();
+		if (fastestdevice>=0)
+			if(checkCudaErrorsQT(cudaGLSetGLDevice(fastestdevice)))
+			{
+				selectedDevice=fastestdevice;
+				cudaAvailable=true;
+			}
 	}
-//	qDebug("initCuda");
+	//	qDebug("initCuda");
 }
 //-----------------------------------------------------------------------------
 // resize
@@ -113,7 +125,7 @@ void CudaPBO::resize(int w, int h)
 	// deactive pixelbuffer and texture object
 	release();
 
-//	qDebug("resizePBO");
+	//	qDebug("resizePBO");
 
 }
 
@@ -129,7 +141,7 @@ int CudaPBO::iDivUp(int a, int b)
 void CudaPBO::runCuda(int time)
 {
 	// uchar4 *dptr=NULL;
-	
+
 	Q_ASSERT(pixelBuffer);
 
 	copyInvViewMatrix(renderSetting.invViewMatrix, sizeof(float4)*3);
@@ -153,7 +165,7 @@ void CudaPBO::runCuda(int time)
 	getLastCudaErrorQT("kernel failed");
 
 	checkCudaErrorsQT(cudaGraphicsUnmapResources(1, &cuda_pbo_resource, 0));
-	
+
 	/*
 	// map OpenGL buffer object for writing from CUDA 
 	// on a single GPU no data is moved (Win & Linux). 
@@ -263,7 +275,7 @@ void CudaPBO::deleteTexture()
 //-----------------------------------------------------------------------------
 void CudaPBO::bind()
 {
-	
+
 	Q_ASSERT(pixelBuffer);
 	// Create a texture from the buffer
 	pixelBuffer->bind();
@@ -279,20 +291,20 @@ void CudaPBO::bind()
 	// hence data is coming from PBO
 	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, image_width, image_height, 
 		GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-	
+
 }
 //-----------------------------------------------------------------------------
 // release
 //-----------------------------------------------------------------------------
 void CudaPBO::release()
 {
-	
+
 	Q_ASSERT(pixelBuffer);
 	// deactivate pixelbuffer object
 	pixelBuffer->release();
 	// deactivate texture object
 	glBindTexture(GL_TEXTURE_2D, 0);
-	
+
 }
 //-----------------------------------------------------------------------------
 // cleanupCuda
@@ -319,9 +331,9 @@ int CudaPBO::selectDevice(int deviceID){
 		return -2;
 	if(checkCudaErrorsQT(cudaSetDevice(deviceID)))
 	{
-//		int dd;
-//		cudaGetDevice (&dd);
-//		qDebug(QString("so device is%1").arg(dd).toLatin1());
+		//		int dd;
+		//		cudaGetDevice (&dd);
+		//		qDebug(QString("so device is%1").arg(dd).toLatin1());
 
 		selectedDevice=deviceID;
 		// create pixel buffer object and register to cude
@@ -343,39 +355,39 @@ int CudaPBO::getSelectedDevice(){
 
 bool CudaPBO::loadCudaBuffers(void *h_volume, cudaExtent volumeSize)
 {
-    // create 3D array
-    cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<VolumeType>();
-    checkCudaErrorsQT(cudaMalloc3DArray(&d_volumeArray, &channelDesc, volumeSize));
+	// create 3D array
+	cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<VolumeType>();
+	checkCudaErrorsQT(cudaMalloc3DArray(&d_volumeArray, &channelDesc, volumeSize));
 
-    // copy data to 3D array
-    cudaMemcpy3DParms copyParams = {0};
-    copyParams.srcPtr   = make_cudaPitchedPtr(h_volume, volumeSize.width*sizeof(VolumeType), volumeSize.width, volumeSize.height);
-    copyParams.dstArray = d_volumeArray;
-    copyParams.extent   = volumeSize;
-    copyParams.kind     = cudaMemcpyHostToDevice;
-    checkCudaErrorsQT(cudaMemcpy3D(&copyParams));
+	// copy data to 3D array
+	cudaMemcpy3DParms copyParams = {0};
+	copyParams.srcPtr   = make_cudaPitchedPtr(h_volume, volumeSize.width*sizeof(VolumeType), volumeSize.width, volumeSize.height);
+	copyParams.dstArray = d_volumeArray;
+	copyParams.extent   = volumeSize;
+	copyParams.kind     = cudaMemcpyHostToDevice;
+	checkCudaErrorsQT(cudaMemcpy3D(&copyParams));
 
-    // create transfer function texture
-    float4 transferFunc[] =
-    {
-        {  0.0, 0.0, 0.0, 0.0, },
-        {  1.0, 0.0, 0.0, 1.0, },
-        {  1.0, 0.5, 0.0, 1.0, },
-        {  1.0, 1.0, 0.0, 1.0, },
-        {  0.0, 1.0, 0.0, 1.0, },
-        {  0.0, 1.0, 1.0, 1.0, },
-        {  0.0, 0.0, 1.0, 1.0, },
-        {  1.0, 0.0, 1.0, 1.0, },
-        {  0.0, 0.0, 0.0, 0.0, },
-    };
+	// create transfer function texture
+	float4 transferFunc[] =
+	{
+		{  0.0, 0.0, 0.0, 0.0, },
+		{  1.0, 0.0, 0.0, 1.0, },
+		{  1.0, 0.5, 0.0, 1.0, },
+		{  1.0, 1.0, 0.0, 1.0, },
+		{  0.0, 1.0, 0.0, 1.0, },
+		{  0.0, 1.0, 1.0, 1.0, },
+		{  0.0, 0.0, 1.0, 1.0, },
+		{  1.0, 0.0, 1.0, 1.0, },
+		{  0.0, 0.0, 0.0, 0.0, },
+	};
 
-    cudaChannelFormatDesc channelDesc2 = cudaCreateChannelDesc<float4>();
-    cudaArray *d_transferFuncArray;
-    checkCudaErrorsQT(cudaMallocArray(&d_transferFuncArray, &channelDesc2, sizeof(transferFunc)/sizeof(float4), 1));
-    checkCudaErrorsQT(cudaMemcpyToArray(d_transferFuncArray, 0, 0, transferFunc, sizeof(transferFunc), cudaMemcpyHostToDevice));
+	cudaChannelFormatDesc channelDesc2 = cudaCreateChannelDesc<float4>();
+	cudaArray *d_transferFuncArray;
+	checkCudaErrorsQT(cudaMallocArray(&d_transferFuncArray, &channelDesc2, sizeof(transferFunc)/sizeof(float4), 1));
+	checkCudaErrorsQT(cudaMemcpyToArray(d_transferFuncArray, 0, 0, transferFunc, sizeof(transferFunc), cudaMemcpyHostToDevice));
 
 	checkCudaErrorsQT(bindArray2Texture(d_volumeArray, &channelDesc,
-							d_transferFuncArray, &channelDesc2));
+		d_transferFuncArray, &channelDesc2));
 	return true;
 }
 
@@ -387,10 +399,28 @@ bool CudaPBO::freeCudaBuffers()
 		d_volumeArray=0;
 	}
 	if(d_transferFuncArray)
-    {
+	{
 		checkCudaErrorsQT(cudaFreeArray(d_transferFuncArray));
 		d_transferFuncArray=0;
 	}
 	return true;
 }
 
+int CudaPBO::findFastestDevice()
+{
+	int num_devices=getDeviceCounts();
+	int max_multiprocessors = 0, max_device = -1;
+	if (num_devices > 0) {
+		for (int device = 0; device < num_devices; device++) {
+			if (getDeviceAvailable()[device])
+			{
+				cudaDeviceProp properties=getDevicesProps()[device];
+				if (max_multiprocessors < _ConvertSMVer2Cores(properties.major, properties.minor) * properties.multiProcessorCount) {
+					max_multiprocessors = _ConvertSMVer2Cores(properties.major, properties.minor) * properties.multiProcessorCount;
+					max_device = device;
+				}
+			}
+		}
+	}
+	return max_device;
+}
