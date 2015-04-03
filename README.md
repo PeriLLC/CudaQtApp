@@ -1,4 +1,4 @@
-# CudaQtApp
+# QtCudaApp
 A cross platform GUI for Cuda 3D volume renderring.
 
 Need SM_20 hardware to compile.
