@@ -48,7 +48,7 @@ INCLUDEPATH  += $$CUDA_DIR/include
 # libs used in your code
 LIBS += -lcudart -lcuda
 # GPU architecture
-CUDA_ARCH     = sm_11                # Yeah! I've a new device. Adjust with your compute capability
+CUDA_ARCH     = sm_20                # Yeah! I've a new device. Adjust with your compute capability
 
 unix{
 # Here are some NVCC flags I've always used by default.
